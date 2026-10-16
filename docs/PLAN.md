@@ -4,6 +4,29 @@ Goal: run Counter-Strike 2 on Apple Silicon Macs as natively as possible.
 This repo holds **only our own code and docs**. Valve's binaries and game
 assets never go in it; each user points the tooling at their own install.
 
+## 0. Primary track: Linux Steam in a VM (steamac)
+
+[steamac](https://github.com/fxgl/steamac) (Apache-2.0) runs Valve's own
+ARM64 SteamOS (the Steam Frame image) in a libkrun VM on Hypervisor.framework.
+The Steam client is native ARM64; x86 games (Linux, or Windows via Proton)
+run through FEX; Vulkan goes Venus → virglrenderer → MoltenVK or KosmicKrisp
+→ Metal. It covers the whole Steam library, needs no reverse engineering, and
+leaves game files unmodified (only anti-cheat that blocks VMs fails).
+It has already fixed CS2-specific crashes (query pools, null descriptor sets)
+but does not list CS2 as verified.
+
+Steps:
+1. Build and run steamac on the target Mac (macOS 15+, Xcode 26, OrbStack,
+   ~150 GB). Turn off its default crash-report upload if wanted.
+2. Install CS2 inside SteamOS; record what works: launch, menu, offline map
+   with bots, a demo playback for FPS, input latency, audio.
+3. For each CS2 failure: reduce it to a host-side Vulkan repro and fix it in
+   steamac's MoltenVK/KosmicKrisp/virglrenderer patches, sent upstream.
+   CS2 notes, repros and benchmarks live in this repo.
+
+The custom-client plan below (sections 1–5) is the alternative if the VM
+route can't reach playable performance.
+
 ## 1. Where things stand
 
 * Valve ships CS2 for **Windows (Direct3D 11)** and **Linux (Vulkan, SDL3,
