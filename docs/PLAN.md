@@ -97,17 +97,34 @@ Each phase ends with something measurable before the next starts.
 the external import surface and a Vulkan gap list.
 
 ### Phase 1: ELF loader on macOS
-* `loader/`: an x86-64 Mach-O executable (runs under Rosetta) that maps ELF
-  shared objects, applies relocations (`R_X86_64_RELATIVE`, `GLOB_DAT`,
-  `JUMP_SLOT`, `64`, TLS relocs), runs `DT_INIT`/`init_array`, and resolves
-  imports from an in-process symbol table instead of `ld.so`.
-* ELF TLS: implement static TLS block + `__tls_get_addr` on top of a macOS
-  pthread key, since Mach-O TLS works differently.
-* Developed and unit-tested on Linux first (same code, same ELF files), then
-  built for macOS.
+`loader/` (**working on Linux; macOS build follows the Phase 2 shim**). An
+x86-64 host program that maps ELF executables and shared objects itself
+(no `ld.so`), so on macOS it runs under Rosetta like any x86-64 app.
 
-**Exit:** a test `.so` compiled on Linux, calling `printf`, `pthread_create`
-and using `__thread`, runs inside the loader on an M-series Mac.
+Done and tested (`tests/test_loader.py`, each fixture compared with a native run):
+* Segments copied into anonymous memory, so 16K host pages don't matter;
+  PIE and fixed-address (`ET_EXEC`) programs.
+* Relocations `RELATIVE`, `64`, `PC32`, `GLOB_DAT`, `JUMP_SLOT`, `COPY`,
+  `IRELATIVE`, `DTPMOD64`, `DTPOFF64`; GNU and SysV hash lookup; symbol
+  versions (verneed/verdef, hidden `name@VER` definitions).
+* TLS (general dynamic) via our own `__tls_get_addr` and per-thread blocks.
+* `dlopen`/`dlsym`/`dlerror`/`dladdr` routed to the loader; `$ORIGIN`
+  RPATH/RUNPATH; `dl_iterate_phdr` and `_dl_find_object` so C++ exceptions
+  unwind through loaded code.
+* Initializers deps-first, finalizers in reverse at exit; `_start` entered
+  with a Linux initial stack and auxv.
+* Unresolved functions bind to stubs that name the symbol when called, so
+  the shim can be filled in by running the game and seeing what it hits.
+* Real-world check: the system Python (non-PIE, 6.8 MB) runs through the
+  loader, dlopening extension modules that pull in OpenSSL, SQLite, libffi.
+
+Open:
+* Initial-exec TLS (`R_X86_64_TPOFF64`, `%fs`-relative). Needs a static TLS
+  area at a fixed `%fs` offset; how Rosetta treats `%fs` decides the design.
+  The survey's `static_tls` flag shows whether CS2 modules need it.
+* `RTLD_LOCAL` scoping (everything is global today), RELRO, unloading.
+* macOS build of the loader itself (Mach-O, `-pagezero_size` small enough for
+  fixed-address programs at 0x400000).
 
 ### Phase 2: Linux ABI shim
 * Implement the glibc/libstdc++/libm/libdl/libpthread/librt symbols from the

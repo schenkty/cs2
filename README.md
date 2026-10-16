@@ -31,8 +31,23 @@ commit Valve binaries or assets.
    external symbol grouped by library and version, and the Vulkan extensions
    the renderer references. It contains names only, no Valve code.
 
+## Phase 1: the loader
+
+`loader/elfload` runs Linux x86-64 programs through our own ELF loader
+instead of the system `ld.so` (Linux for now; the macOS build needs the
+Phase 2 shim):
+
+```sh
+make -C loader
+loader/elfload -L /path/to/libs program [args...]
+loader/elfload --call symbol library.so     # call int symbol(void)
+```
+
+`-v` logs mapping and linking; `--strict` fails on unresolved symbols
+instead of stubbing them.
+
 ## Tests
 
 ```sh
-python3 -m unittest discover -s tests   # needs gcc on x86-64 Linux
+python3 -m unittest discover -s tests   # needs gcc, g++, make on x86-64 Linux
 ```
