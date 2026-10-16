@@ -1,0 +1,2 @@
+regex:^game/bin/linuxsteamrt64/
+regex:^game/csgo/bin/linuxsteamrt64/

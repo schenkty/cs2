@@ -1,0 +1,18 @@
+# Never commit Valve's game files or anything copied out of them.
+cs2-linux/
+cs2-install/
+depots/
+*.so
+*.so.*
+*.vpk
+*.dll
+*.exe
+*.dylib
+
+# Local survey output (commit curated reports under docs/reports/ instead)
+survey.json
+survey.md
+
+__pycache__/
+*.pyc
+.DS_Store
