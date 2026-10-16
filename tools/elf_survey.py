@@ -30,6 +30,7 @@ ELF_MAGIC = b"\x7fELF"
 EM_X86_64 = 62
 
 PT_LOAD, PT_DYNAMIC, PT_INTERP, PT_TLS = 1, 2, 3, 7
+PF_X = 0x1
 
 SHT_DYNSYM = 11
 
@@ -121,6 +122,11 @@ class Elf:
             if p[0] == PT_INTERP:
                 return self.cstr(p[2])
         return None
+
+    @property
+    def code_bytes(self):
+        """Bytes of executable segments, a proxy for how much code a module has."""
+        return sum(p[5] for p in self.loads if p[1] & PF_X)
 
     @property
     def tls_size(self):
@@ -249,6 +255,7 @@ def survey(root):
                 "needed": elf.strings(DT_NEEDED),
                 "rpath": elf.strings(DT_RPATH) + elf.strings(DT_RUNPATH),
                 "tls_bytes": elf.tls_size,
+                "code_bytes": elf.code_bytes,
                 **elf.flags(),
                 "exports": sorted(n for n, d, _, _, _ in syms if d),
                 "imports": [
@@ -328,6 +335,8 @@ def to_markdown(root, modules, errors, result):
     total_ext = sum(len(s) for s in result["external_symbols"].values())
     w("* Modules: **%d** (%d executables)" % (
         len(modules), sum(1 for m in modules.values() if m["type"] == "exec")))
+    w("* Executable code: **%.1f MB**" % (
+        sum(m["code_bytes"] for m in modules.values()) / 1e6))
     w("* External libraries: **%d**" % len(result["external_libs"]))
     w("* External symbols (the shim's to-do list): **%d**" % total_ext)
     w("* Imports satisfied inside the install: %d" % result["internal_import_count"])
@@ -351,11 +360,12 @@ def to_markdown(root, modules, errors, result):
     w("")
 
     w("## Modules\n")
-    w("| Module | Type | TLS bytes | Imports | Exports | Needed |")
-    w("|---|---|---:|---:|---:|---|")
-    for rel, m in sorted(modules.items()):
-        w("| `%s` | %s | %d | %d | %d | %s |" % (
-            rel, m["type"], m["tls_bytes"], len(m["imports"]), len(m["exports"]),
+    w("| Module | Type | Code KB | TLS bytes | Imports | Exports | Needed |")
+    w("|---|---|---:|---:|---:|---:|---|")
+    for rel, m in sorted(modules.items(), key=lambda kv: -kv[1]["code_bytes"]):
+        w("| `%s` | %s | %d | %d | %d | %d | %s |" % (
+            rel, m["type"], m["code_bytes"] // 1024, m["tls_bytes"],
+            len(m["imports"]), len(m["exports"]),
             ", ".join(m["needed"])))
     w("")
 

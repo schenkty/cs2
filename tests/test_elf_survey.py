@@ -55,6 +55,7 @@ class SurveyTest(unittest.TestCase):
         lib = self.modules["game/bin/libgame.so"]
         self.assertEqual(lib["soname"], "libgame.so")
         self.assertGreater(lib["tls_bytes"], 0)
+        self.assertGreater(lib["code_bytes"], 0)
         self.assertIn("game_tick", lib["exports"])
         exe = self.modules["game/bin/launcher_gnu"]
         self.assertIn(exe["type"], ("exec", "dyn"))
