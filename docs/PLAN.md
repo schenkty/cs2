@@ -4,28 +4,27 @@ Goal: run Counter-Strike 2 on Apple Silicon Macs as natively as possible.
 This repo holds **only our own code and docs**. Valve's binaries and game
 assets never go in it; each user points the tooling at their own install.
 
-## 0. Primary track: Linux Steam in a VM (steamac)
+## 0. Product goal
 
-[steamac](https://github.com/fxgl/steamac) (Apache-2.0) runs Valve's own
-ARM64 SteamOS (the Steam Frame image) in a libkrun VM on Hypervisor.framework.
-The Steam client is native ARM64; x86 games (Linux, or Windows via Proton)
-run through FEX; Vulkan goes Venus → virglrenderer → MoltenVK or KosmicKrisp
-→ Metal. It covers the whole Steam library, needs no reverse engineering, and
-leaves game files unmodified (only anti-cheat that blocks VMs fails).
-It has already fixed CS2-specific crashes (query pools, null descriptor sets)
-but does not list CS2 as verified.
+A Mac app that runs the **Linux builds of Steam games as ordinary macOS
+processes**: no VM, no hypervisor, no Wine/CrossOver. CS2 is the first target
+and the proving ground; everything below the game (loader, Linux ABI shim,
+SDL3, Vulkan→Metal) is shared, so each further Linux/Vulkan game mostly needs
+only the symbols it uses that the shim doesn't have yet.
 
-Steps:
-1. Build and run steamac on the target Mac (macOS 15+, Xcode 26, OrbStack,
-   ~150 GB). Turn off its default crash-report upload if wanted.
-2. Install CS2 inside SteamOS; record what works: launch, menu, offline map
-   with bots, a demo playback for FPS, input latency, audio.
-3. For each CS2 failure: reduce it to a host-side Vulkan repro and fix it in
-   steamac's MoltenVK/KosmicKrisp/virglrenderer patches, sent upstream.
-   CS2 notes, repros and benchmarks live in this repo.
-
-The custom-client plan below (sections 1–5) is the alternative if the VM
-route can't reach playable performance.
+* **Steam side:** the native macOS Steam client handles sign-in and
+  ownership; our app downloads an owned game's Linux depot with the user's
+  own account (SteamKit / DepotDownloader protocol) and launches it.
+  Game-side `libsteam_api.so` calls go to the macOS `libsteam_api.dylib`
+  (Phase 5). The Linux Steam client itself is never run (its CEF UI and
+  container runtime need a real Linux kernel).
+* **Why not a VM:** ruled out by the project owner. VM-based projects
+  (steamac, elfuse) exist; this project deliberately differs.
+* **Distribution:** signed, notarized DMG; the app downloads nothing from
+  Valve except through the user's account, and bundles no Valve files.
+  It must not use Valve's "Steam" branding.
+* **Scope limits:** Windows-only games (Proton) are out of scope, since they
+  would need Wine; games with kernel anti-cheat won't work.
 
 ## 1. Where things stand
 
@@ -172,9 +171,8 @@ The step from "runs on macOS" to "native macOS client".
 
 ## 5. Fallback
 
-* If Phase 2 stalls: run the Linux build in a lightweight Linux VM
-  (Rosetta for Linux + virtio-gpu Venus → MoltenVK). Slower, but proves the
-  Vulkan path and reuses Phase 4 work.
+* None that involve a VM (ruled out). If Phase 2 stalls, narrow scope to the
+  dedicated server and fix the shim from its failures before the client.
 
 ## 6. Repo layout (planned)
 
